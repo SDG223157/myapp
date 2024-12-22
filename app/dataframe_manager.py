@@ -1,14 +1,13 @@
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, inspect
 import yfinance as yf
 from datetime import datetime
 class MySQLDataFrameManager:
     
     def __init__(self, host, user, password, database, port=3306):
-        # Create SQLAlchemy engine
-        self.engine = create_engine(
-            f"mysql+pymysql://{user}:{password}@{host}:{port}/{database}"
-        )
+        self.connection_string = f"mysql+pymysql://{user}:{password}@{host}:{port}/{database}"
+        print(f"Connecting to database at {host}:{port}/{database}")
+        self.engine = create_engine(self.connection_string)
 
     
     def table_exists(self, table_name):
@@ -27,13 +26,13 @@ class MySQLDataFrameManager:
         try:
             # Check if table exists
             table_name = f"stock_{ticker.lower()}"
-            if self.table_exists(table_name):
-                return False, f"Stock data for {ticker} already exists"
-
+            print(f"Checking if table {table_name} exists...")
+            
             # Fetch data from yfinance
-            print(f"Fetching data for {ticker}...")
+            print(f"Fetching data for {ticker} from yfinance...")
             stock = yf.Ticker(ticker)
             df = stock.history(period="max")
+            print(f"Retrieved {len(df)} rows of data")
             
             if df.empty:
                 return False, f"No data available for ticker {ticker}"
@@ -41,20 +40,33 @@ class MySQLDataFrameManager:
             # Reset index to make date a column
             df.reset_index(inplace=True)
             
-            # Convert all column names to strings
-            df.columns = df.columns.astype(str)
+            # Ensure Date column is properly formatted
+            df['Date'] = pd.to_datetime(df['Date']).dt.strftime('%Y-%m-%d %H:%M:%S')
             
-            print(f"Storing data for {ticker}...")
+            print(f"Columns in DataFrame: {df.columns.tolist()}")
+            print(f"First row of data: {df.iloc[0].to_dict()}")
+            
             # Store DataFrame
+            print(f"Storing data in table {table_name}...")
             df.to_sql(
                 name=table_name,
                 con=self.engine,
                 index=False,
-                if_exists='replace'  # Changed from 'fail' to 'replace'
+                if_exists='replace'
             )
-            return True, f"Successfully stored stock data for {ticker}"
+            print(f"Successfully stored data in table {table_name}")
+            
+            # Verify data was stored
+            verify_query = f"SELECT COUNT(*) FROM {table_name}"
+            count = pd.read_sql(verify_query, self.engine).iloc[0, 0]
+            print(f"Verified {count} rows in database")
+            
+            return True, f"Successfully stored {count} rows of stock data for {ticker}"
+            
         except Exception as e:
-            print(f"Error in store_stock_data: {e}")
+            print(f"Error in store_stock_data: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
             return False, f"Error storing stock data: {str(e)}"
 
     def get_stock_data(self, ticker):
@@ -63,14 +75,26 @@ class MySQLDataFrameManager:
         """
         try:
             table_name = f"stock_{ticker.lower()}"
-            if not self.table_exists(table_name):
+            print(f"Attempting to retrieve data from table {table_name}")
+            
+            # Check if table exists
+            inspector = inspect(self.engine)
+            if table_name not in inspector.get_table_names():
+                print(f"Table {table_name} not found in database")
                 return None, f"No data found for ticker {ticker}"
 
             query = f"SELECT * FROM {table_name} ORDER BY Date DESC"
+            print(f"Executing query: {query}")
+            
             df = pd.read_sql(query, self.engine)
+            print(f"Retrieved {len(df)} rows from database")
+            
             return df, None
+            
         except Exception as e:
-            print(f"Error in get_stock_data: {e}")
+            print(f"Error in get_stock_data: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
             return None, f"Error retrieving stock data: {str(e)}"
     def store_dataframe(self, df, table_name, if_exists='replace'):
         """

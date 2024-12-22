@@ -14,29 +14,41 @@ main = Blueprint('main', __name__)
 @main.route('/api/stock/store/<ticker>')
 def store_stock_data(ticker):
     """Store stock data from yfinance"""
+    print(f"Received request to store data for ticker: {ticker}")
     try:
         success, message = df_manager.store_stock_data(ticker.upper())
+        print(f"Store operation result - Success: {success}, Message: {message}")
         if success:
             return jsonify({'message': message})
         return jsonify({'error': message}), 400
     except Exception as e:
+        print(f"Error in store_stock_data route: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 @main.route('/api/stock/fetch/<ticker>')
 def fetch_stock_data(ticker):
     """Fetch stock data from database"""
+    print(f"Received request to fetch data for ticker: {ticker}")
     try:
         df, error = df_manager.get_stock_data(ticker.upper())
+        print(f"Fetch operation result - Error: {error}")
         if error:
             return jsonify({'error': error}), 400
         
         if df is not None:
+            data = df.to_dict(orient='records')
+            print(f"Successfully retrieved {len(data)} records")
             return jsonify({
-                'data': df.to_dict(orient='records'),
+                'data': data,
                 'ticker': ticker
             })
         return jsonify({'error': 'No data found'}), 404
     except Exception as e:
+        print(f"Error in fetch_stock_data route: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 @main.route('/stocks')
