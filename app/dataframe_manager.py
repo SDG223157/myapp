@@ -11,6 +11,15 @@ class MySQLDataFrameManager:
         )
 
     
+    def table_exists(self, table_name):
+        """Check if table exists in database"""
+        try:
+            inspector = inspect(self.engine)
+            return table_name in inspector.get_table_names()
+        except Exception as e:
+            print(f"Error checking table existence: {e}")
+            return False
+
     def store_stock_data(self, ticker):
         """
         Fetch and store stock data from yfinance
@@ -22,21 +31,30 @@ class MySQLDataFrameManager:
                 return False, f"Stock data for {ticker} already exists"
 
             # Fetch data from yfinance
+            print(f"Fetching data for {ticker}...")
             stock = yf.Ticker(ticker)
             df = stock.history(period="max")
+            
+            if df.empty:
+                return False, f"No data available for ticker {ticker}"
             
             # Reset index to make date a column
             df.reset_index(inplace=True)
             
+            # Convert all column names to strings
+            df.columns = df.columns.astype(str)
+            
+            print(f"Storing data for {ticker}...")
             # Store DataFrame
             df.to_sql(
                 name=table_name,
                 con=self.engine,
                 index=False,
-                if_exists='fail'
+                if_exists='replace'  # Changed from 'fail' to 'replace'
             )
             return True, f"Successfully stored stock data for {ticker}"
         except Exception as e:
+            print(f"Error in store_stock_data: {e}")
             return False, f"Error storing stock data: {str(e)}"
 
     def get_stock_data(self, ticker):
@@ -52,16 +70,8 @@ class MySQLDataFrameManager:
             df = pd.read_sql(query, self.engine)
             return df, None
         except Exception as e:
+            print(f"Error in get_stock_data: {e}")
             return None, f"Error retrieving stock data: {str(e)}"
-
-    def table_exists(self, table_name):
-        """Check if table exists in database"""
-        try:
-            query = text(f"SHOW TABLES LIKE '{table_name}'")
-            result = self.engine.execute(query)
-            return result.rowcount > 0
-        except:
-            return False
     def store_dataframe(self, df, table_name, if_exists='replace'):
         """
         Store DataFrame to MySQL

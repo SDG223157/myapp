@@ -14,22 +14,30 @@ main = Blueprint('main', __name__)
 @main.route('/api/stock/store/<ticker>')
 def store_stock_data(ticker):
     """Store stock data from yfinance"""
-    success, message = df_manager.store_stock_data(ticker)
-    if success:
-        return jsonify({'message': message})
-    return jsonify({'error': message}), 400
+    try:
+        success, message = df_manager.store_stock_data(ticker.upper())
+        if success:
+            return jsonify({'message': message})
+        return jsonify({'error': message}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @main.route('/api/stock/fetch/<ticker>')
 def fetch_stock_data(ticker):
     """Fetch stock data from database"""
-    df, error = df_manager.get_stock_data(ticker)
-    if error:
-        return jsonify({'error': error}), 400
-    
-    return jsonify({
-        'data': df.to_dict(orient='records'),
-        'ticker': ticker
-    })
+    try:
+        df, error = df_manager.get_stock_data(ticker.upper())
+        if error:
+            return jsonify({'error': error}), 400
+        
+        if df is not None:
+            return jsonify({
+                'data': df.to_dict(orient='records'),
+                'ticker': ticker
+            })
+        return jsonify({'error': 'No data found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @main.route('/stocks')
 def stocks_page():
