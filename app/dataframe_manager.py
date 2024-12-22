@@ -14,11 +14,12 @@ class MySQLDataFrameManager:
         """Check if table exists in database"""
         try:
             inspector = inspect(self.engine)
-            return table_name in inspector.get_table_names()
+            exists = table_name in inspector.get_table_names()
+            print(f"Checking table {table_name} exists: {exists}")  # Add logging
+            return exists
         except Exception as e:
-            print(f"Error checking table existence: {e}")
+            print(f"Error checking table existence: {e}")  # Add logging
             return False
-
     def store_stock_data(self, ticker):
         """
         Fetch and store stock data from yfinance

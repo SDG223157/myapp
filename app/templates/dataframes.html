@@ -10,43 +10,53 @@
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
+            background-color: #f5f5f5;
         }
         .card {
             border: 1px solid #ddd;
             padding: 20px;
             border-radius: 8px;
             margin-bottom: 20px;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            background-color: white;
         }
         th, td {
             border: 1px solid #ddd;
-            padding: 8px;
+            padding: 12px 8px;
             text-align: left;
         }
         th {
-            background-color: #f5f5f5;
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
         }
         .form-group {
             margin-bottom: 15px;
         }
         input[type="text"] {
-            padding: 8px;
+            padding: 8px 12px;
             margin-right: 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
+            width: 200px;
         }
         button {
-            padding: 8px 15px;
+            padding: 8px 16px;
             background-color: #4CAF50;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             margin-right: 10px;
+            transition: background-color 0.3s;
         }
         button:hover {
             background-color: #45a049;
@@ -57,16 +67,39 @@
         }
         .table-list {
             margin-top: 10px;
-            padding: 10px;
-            background-color: #f9f9f9;
-            border-radius: 4px;
         }
         .table-item {
-            margin: 5px 0;
-            padding: 5px;
+            margin: 8px 0;
+            padding: 12px;
             background-color: #fff;
             border: 1px solid #ddd;
             border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .table-item:hover {
+            background-color: #f8f9fa;
+        }
+        .status-message {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .loading {
+            color: #856404;
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
         }
     </style>
 </head>
@@ -75,7 +108,7 @@
     
     <div class="card">
         <h2>Database Tables</h2>
-        <button onclick="showDatabaseTables()">Show Tables</button>
+        <button onclick="showDatabaseTables()">Refresh Tables</button>
         <div id="tablesList" class="table-list"></div>
     </div>
 
@@ -100,27 +133,44 @@
     <script>
         function showDatabaseTables() {
             const tablesList = document.getElementById('tablesList');
-            tablesList.innerHTML = 'Loading tables...';
+            tablesList.innerHTML = '<div class="status-message loading">Loading tables...</div>';
             
             fetch('/api/db-check')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.status === 'connected') {
                         if (data.tables.length === 0) {
-                            tablesList.innerHTML = '<p>No tables found in database</p>';
+                            tablesList.innerHTML = '<div class="status-message">No stock tables found in database</div>';
                         } else {
-                            let tableHtml = '<h3>Available Tables:</h3>';
+                            let tableHtml = `<h3>Available Stock Tables (${data.count}):</h3>`;
                             data.tables.forEach(table => {
-                                tableHtml += `<div class="table-item">${table}</div>`;
+                                const ticker = table.replace('stock_', '').toUpperCase();
+                                tableHtml += `
+                                    <div class="table-item">
+                                        <span>${ticker}</span>
+                                        <button onclick="fetchStockData('${ticker}')">View Data</button>
+                                    </div>`;
                             });
                             tablesList.innerHTML = tableHtml;
                         }
                     } else {
-                        tablesList.innerHTML = `<p style="color: red">Error: ${data.error}</p>`;
+                        tablesList.innerHTML = `
+                            <div class="status-message error">
+                                Database Error: ${data.error || 'Unknown error'}
+                            </div>`;
                     }
                 })
                 .catch(error => {
-                    tablesList.innerHTML = `<p style="color: red">Error fetching tables: ${error.message}</p>`;
+                    tablesList.innerHTML = `
+                        <div class="status-message error">
+                            Connection Error: ${error.message}
+                        </div>`;
+                    console.error('Error:', error);
                 });
         }
 
@@ -129,43 +179,54 @@
             const storeMessage = document.getElementById('storeMessage');
             
             if (!ticker) {
-                storeMessage.innerHTML = '<p style="color: red">Please enter a ticker symbol</p>';
+                storeMessage.innerHTML = '<div class="status-message error">Please enter a ticker symbol</div>';
                 return;
             }
 
-            storeMessage.innerHTML = '<p>Storing data...</p>';
+            storeMessage.innerHTML = '<div class="status-message loading">Storing data...</div>';
             
             fetch(`/api/stock/store/${ticker}`)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.error) {
-                        storeMessage.innerHTML = `<p style="color: red">Error: ${data.error}</p>`;
+                        storeMessage.innerHTML = `<div class="status-message error">Error: ${data.error}</div>`;
                     } else {
-                        storeMessage.innerHTML = `<p style="color: green">${data.message}</p>`;
-                        showDatabaseTables(); // Refresh tables list after storing
+                        storeMessage.innerHTML = `<div class="status-message success">${data.message}</div>`;
+                        showDatabaseTables();
                     }
                 })
                 .catch(error => {
-                    storeMessage.innerHTML = `<p style="color: red">Error: ${error.message}</p>`;
+                    storeMessage.innerHTML = `<div class="status-message error">Error: ${error.message}</div>`;
+                    console.error('Error:', error);
                 });
         }
 
-        function fetchStockData() {
-            const ticker = document.getElementById('fetchTicker').value.toUpperCase();
+        function fetchStockData(tickerParam) {
+            const ticker = tickerParam || document.getElementById('fetchTicker').value.toUpperCase();
             const dataDisplay = document.getElementById('dataDisplay');
             
             if (!ticker) {
-                dataDisplay.innerHTML = '<p style="color: red">Please enter a ticker symbol</p>';
+                dataDisplay.innerHTML = '<div class="status-message error">Please enter a ticker symbol</div>';
                 return;
             }
 
-            dataDisplay.innerHTML = '<p>Loading data...</p>';
+            dataDisplay.innerHTML = '<div class="status-message loading">Loading data...</div>';
             
             fetch(`/api/stock/fetch/${ticker}`)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.error) {
-                        dataDisplay.innerHTML = `<p style="color: red">Error: ${data.error}</p>`;
+                        dataDisplay.innerHTML = `<div class="status-message error">Error: ${data.error}</div>`;
                     } else {
                         let tableHtml = `
                             <h3>${ticker} Stock Data</h3>
@@ -187,11 +248,11 @@
                             tableHtml += `
                                 <tr>
                                     <td>${row.Date}</td>
-                                    <td>${row.Open.toFixed(2)}</td>
-                                    <td>${row.High.toFixed(2)}</td>
-                                    <td>${row.Low.toFixed(2)}</td>
-                                    <td>${row.Close.toFixed(2)}</td>
-                                    <td>${row.Volume}</td>
+                                    <td>${parseFloat(row.Open).toFixed(2)}</td>
+                                    <td>${parseFloat(row.High).toFixed(2)}</td>
+                                    <td>${parseFloat(row.Low).toFixed(2)}</td>
+                                    <td>${parseFloat(row.Close).toFixed(2)}</td>
+                                    <td>${parseInt(row.Volume).toLocaleString()}</td>
                                 </tr>
                             `;
                         });
@@ -201,7 +262,8 @@
                     }
                 })
                 .catch(error => {
-                    dataDisplay.innerHTML = `<p style="color: red">Error: ${error.message}</p>`;
+                    dataDisplay.innerHTML = `<div class="status-message error">Error loading data: ${error.message}</div>`;
+                    console.error('Error:', error);
                 });
         }
 

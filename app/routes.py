@@ -1,8 +1,7 @@
-
 from flask import Blueprint, jsonify, request, render_template
 from app.database import add_user, get_user, get_all_users, update_user, delete_user
 from app import db, df_manager
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 import pandas as pd
 import os
 import io
@@ -10,6 +9,28 @@ import traceback
 
 # ... (keep existing routes) ...
 main = Blueprint('main', __name__)
+@main.route('/api/db-check')
+def check_database():
+    """Check database connection and list tables"""
+    try:
+        # Use the engine from df_manager
+        inspector = inspect(df_manager.engine)
+        tables = inspector.get_table_names()
+        
+        # Filter for stock tables only
+        stock_tables = [table for table in tables if table.startswith('stock_')]
+        
+        return jsonify({
+            'status': 'connected',
+            'tables': stock_tables,
+            'count': len(stock_tables)
+        })
+    except Exception as e:
+        print(f"Database check error: {str(e)}")  # Add logging
+        return jsonify({
+            'status': 'error',
+            'error': str(e)
+        }), 500
 # Add new routes for DataFrame operations
 @main.route('/api/stock/store/<ticker>')
 def store_stock_data(ticker):
