@@ -46,6 +46,7 @@
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            margin-right: 10px;
         }
         button:hover {
             background-color: #45a049;
@@ -54,11 +55,30 @@
             color: red;
             margin-top: 10px;
         }
+        .table-list {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        .table-item {
+            margin: 5px 0;
+            padding: 5px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
     <h1>Stock Data Manager</h1>
     
+    <div class="card">
+        <h2>Database Tables</h2>
+        <button onclick="showDatabaseTables()">Show Tables</button>
+        <div id="tablesList" class="table-list"></div>
+    </div>
+
     <div class="card">
         <h2>Store Stock Data</h2>
         <div class="form-group">
@@ -78,6 +98,32 @@
     </div>
 
     <script>
+        function showDatabaseTables() {
+            const tablesList = document.getElementById('tablesList');
+            tablesList.innerHTML = 'Loading tables...';
+            
+            fetch('/api/db-check')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'connected') {
+                        if (data.tables.length === 0) {
+                            tablesList.innerHTML = '<p>No tables found in database</p>';
+                        } else {
+                            let tableHtml = '<h3>Available Tables:</h3>';
+                            data.tables.forEach(table => {
+                                tableHtml += `<div class="table-item">${table}</div>`;
+                            });
+                            tablesList.innerHTML = tableHtml;
+                        }
+                    } else {
+                        tablesList.innerHTML = `<p style="color: red">Error: ${data.error}</p>`;
+                    }
+                })
+                .catch(error => {
+                    tablesList.innerHTML = `<p style="color: red">Error fetching tables: ${error.message}</p>`;
+                });
+        }
+
         function storeStockData() {
             const ticker = document.getElementById('storeTicker').value.toUpperCase();
             const storeMessage = document.getElementById('storeMessage');
@@ -96,6 +142,7 @@
                         storeMessage.innerHTML = `<p style="color: red">Error: ${data.error}</p>`;
                     } else {
                         storeMessage.innerHTML = `<p style="color: green">${data.message}</p>`;
+                        showDatabaseTables(); // Refresh tables list after storing
                     }
                 })
                 .catch(error => {
@@ -157,6 +204,9 @@
                     dataDisplay.innerHTML = `<p style="color: red">Error: ${error.message}</p>`;
                 });
         }
+
+        // Show tables when page loads
+        showDatabaseTables();
     </script>
 </body>
 </html>
