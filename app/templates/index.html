@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Connection Status</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .status-card {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .connected {
+            background-color: #4CAF50;
+        }
+        .disconnected {
+            background-color: #f44336;
+        }
+        .loading {
+            background-color: #FFA500;
+        }
+    </style>
+</head>
+<body>
+    <h1>Database Connection Status</h1>
+    
+    <div class="status-card">
+        <h2>MySQL Connection</h2>
+        <p>
+            <span id="statusIndicator" class="status-indicator loading"></span>
+            Status: <span id="connectionStatus">Checking...</span>
+        </p>
+        <p>Host: <span id="dbHost">-</span></p>
+        <p>Database: <span id="dbName">-</span></p>
+        <p>Last Checked: <span id="lastChecked">-</span></p>
+    </div>
+
+    <div class="status-card">
+        <h2>Test Database Operations</h2>
+        <button onclick="testDatabaseOperations()">Run Test</button>
+        <div id="testResults"></div>
+    </div>
+
+    <script>
+        function updateStatus() {
+            fetch('/api/db-status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusIndicator = document.getElementById('statusIndicator');
+                    const connectionStatus = document.getElementById('connectionStatus');
+                    const dbHost = document.getElementById('dbHost');
+                    const dbName = document.getElementById('dbName');
+                    const lastChecked = document.getElementById('lastChecked');
+
+                    statusIndicator.className = 'status-indicator ' + 
+                        (data.connected ? 'connected' : 'disconnected');
+                    connectionStatus.textContent = data.connected ? 'Connected' : 'Disconnected';
+                    dbHost.textContent = data.host;
+                    dbName.textContent = data.database;
+                    lastChecked.textContent = new Date().toLocaleString();
+
+                    if (!data.connected) {
+                        connectionStatus.textContent += ` (Error: ${data.error})`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    const statusIndicator = document.getElementById('statusIndicator');
+                    const connectionStatus = document.getElementById('connectionStatus');
+                    statusIndicator.className = 'status-indicator disconnected';
+                    connectionStatus.textContent = 'Error checking connection';
+                });
+        }
+
+        function testDatabaseOperations() {
+            const testResults = document.getElementById('testResults');
+            testResults.innerHTML = '<p>Running tests...</p>';
+
+            fetch('/api/test-db')
+                .then(response => response.json())
+                .then(data => {
+                    testResults.innerHTML = `
+                        <h3>Test Results:</h3>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                })
+                .catch(error => {
+                    testResults.innerHTML = `
+                        <h3>Test Failed:</h3>
+                        <p style="color: red">${error.message}</p>
+                    `;
+                });
+        }
+
+        // Check status immediately and every 30 seconds
+        updateStatus();
+        setInterval(updateStatus, 30000);
+    </script>
+</body>
+</html>
