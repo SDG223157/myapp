@@ -1,13 +1,102 @@
+
 from flask import Blueprint, jsonify, request, render_template
 from app.database import add_user, get_user, get_all_users, update_user, delete_user
-from app import db
+from app import db, df_manager
 from sqlalchemy import text
+import pandas as pd
 import os
-import uuid
+import io
 import traceback
 
+# ... (keep existing routes) ...
 main = Blueprint('main', __name__)
+# Add new routes for DataFrame operations
+@main.route('/api/stock/store/<ticker>')
+def store_stock_data(ticker):
+    """Store stock data from yfinance"""
+    success, message = df_manager.store_stock_data(ticker)
+    if success:
+        return jsonify({'message': message})
+    return jsonify({'error': message}), 400
 
+@main.route('/api/stock/fetch/<ticker>')
+def fetch_stock_data(ticker):
+    """Fetch stock data from database"""
+    df, error = df_manager.get_stock_data(ticker)
+    if error:
+        return jsonify({'error': error}), 400
+    
+    return jsonify({
+        'data': df.to_dict(orient='records'),
+        'ticker': ticker
+    })
+
+@main.route('/stocks')
+def stocks_page():
+    """Render stock data management page"""
+    return render_template('dataframes.html')
+@main.route('/dataframes')
+def dataframes_page():
+    return render_template('dataframes.html')
+@main.route('/api/dataframes', methods=['GET'])
+def list_tables():
+    """List all tables in database"""
+    tables, error = df_manager.get_tables()
+    if error:
+        return jsonify({'error': error}), 400
+    return jsonify({'tables': tables})
+
+@main.route('/api/dataframes/<table_name>', methods=['GET'])
+def get_table_data(table_name):
+    """Get data from a table"""
+    columns = request.args.get('columns', '').split(',') if request.args.get('columns') else None
+    where = request.args.get('where')
+    
+    df, error = df_manager.get_dataframe(table_name, columns, where)
+    if error:
+        return jsonify({'error': error}), 400
+    
+    return jsonify({
+        'data': df.to_dict(orient='records'),
+        'columns': df.columns.tolist(),
+        'shape': df.shape
+    })
+
+@main.route('/api/dataframes/<table_name>', methods=['POST'])
+def upload_dataframe(table_name):
+    """Upload data to create a new table"""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    try:
+        # Read CSV file into DataFrame
+        df = pd.read_csv(file)
+        
+        # Store DataFrame
+        success, message = df_manager.store_dataframe(df, table_name)
+        if not success:
+            return jsonify({'error': message}), 400
+        
+        return jsonify({
+            'message': message,
+            'rows': len(df),
+            'columns': df.columns.tolist()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error processing file: {str(e)}'}), 400
+
+@main.route('/api/dataframes/<table_name>/info', methods=['GET'])
+def get_table_info(table_name):
+    """Get information about table structure"""
+    info, error = df_manager.get_table_info(table_name)
+    if error:
+        return jsonify({'error': error}), 400
+    return jsonify({'info': info.to_dict(orient='records')})
 @main.route('/')
 def index():
     return render_template('index.html')
