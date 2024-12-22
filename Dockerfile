@@ -6,5 +6,5 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
-EXPOSE 8080
+EXPOSE 3000
 CMD ["python", "run.py"]
